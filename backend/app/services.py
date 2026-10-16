@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
-from app.models import Bookmark, Follow, Like, Notification, Post, RefreshToken, Reply, Repost, User
+from app.models import Bookmark, Follow, Like, Notification, Post, RefreshToken, Reply, Repost, User, UserStatus
 from app.schemas import MediaOut, PostOut, UserMe, UserPublic, UserSummary
 from app.security import create_token
 
@@ -51,8 +51,14 @@ def user_public(db: Session, user: User, viewer: User | None = None, include_ema
     return UserPublic(**values)
 
 
-def post_query():
-    return select(Post).options(selectinload(Post.author), selectinload(Post.media)).where(~Post.is_blocked)
+def post_query(viewer: User | None = None):
+    query = select(Post).join(User, User.id == Post.author_id).options(selectinload(Post.author), selectinload(Post.media)).where(~Post.is_blocked, User.status == UserStatus.ACTIVE)
+    if viewer is not None:
+        followed = select(Follow.following_id).where(Follow.follower_id == viewer.id)
+        query = query.where((~User.is_private) | (Post.author_id == viewer.id) | Post.author_id.in_(followed))
+    else:
+        query = query.where(~User.is_private)
+    return query
 
 
 def post_out(db: Session, post: Post, viewer: User | None = None) -> PostOut:
@@ -93,6 +99,7 @@ def notify(
     notification_type,
     message: str,
     post_id: uuid.UUID | None = None,
+    target_user_id: uuid.UUID | None = None,
 ):
     if recipient_id == actor.id:
         return
@@ -103,14 +110,15 @@ def notify(
             type=notification_type,
             message=message,
             post_id=post_id,
+            target_user_id=target_user_id,
         )
     )
 
 
-def get_post_or_404(db: Session, post_id: uuid.UUID) -> Post:
+def get_post_or_404(db: Session, post_id: uuid.UUID, viewer: User | None = None) -> Post:
     from fastapi import HTTPException
 
-    post = db.scalar(post_query().where(Post.id == post_id))
+    post = db.scalar(post_query(viewer).where(Post.id == post_id))
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     return post

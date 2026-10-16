@@ -37,6 +37,28 @@ def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)
     return user_public(db, user, user, include_email=True)
 
 
+@router.get("/suggestions", response_model=UserList)
+def suggest_users(
+    page: tuple[int, int] = Depends(pagination),
+    viewer: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    offset, limit = page
+    following_ids = select(Follow.following_id).where(Follow.follower_id == viewer.id)
+    condition = (
+        User.status == UserStatus.ACTIVE,
+        User.id != viewer.id,
+        User.id.not_in(following_ids),
+    )
+    total = db.scalar(select(func.count()).select_from(User).where(*condition)) or 0
+    users = db.scalars(
+        select(User).where(*condition).order_by(User.created_at.desc()).offset(offset).limit(limit)
+    ).all()
+    return UserList(
+        items=[user_public(db, item, viewer) for item in users], total=total, offset=offset, limit=limit
+    )
+
+
 @router.patch("/me", response_model=UserMe)
 def update_me(data: UserUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     values = data.model_dump(exclude_unset=True)

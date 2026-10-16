@@ -76,16 +76,25 @@ def moderate_report(
     report.status = data.status
     report.resolution_note = data.resolution_note
     report.moderator_id = admin.id
+    target_user_id = report.user_id
+    if target_user_id is None and report.post_id:
+        reported_post = db.get(Post, report.post_id)
+        target_user_id = reported_post.author_id if reported_post else None
+    db.add(Notification(user_id=report.reporter_id, actor_id=admin.id, target_user_id=target_user_id,
+                        post_id=report.post_id, type=NotificationType.MODERATION,
+                        message=f"Quản trị viên đã cập nhật báo cáo của bạn: {data.status.value}"))
     db.commit()
     db.refresh(report)
     return report
 
 
 @admin_router.delete("/posts/{post_id}", response_model=Message)
-def admin_delete_post(post_id: uuid.UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def admin_delete_post(post_id: uuid.UUID, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     post = db.get(Post, post_id)
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
+    db.add(Notification(user_id=post.author_id, actor_id=admin.id, target_user_id=post.author_id,
+                        type=NotificationType.MODERATION, message="Bài viết của bạn đã bị quản trị viên xóa"))
     db.delete(post)
     db.commit()
     return Message(message="Post deleted by moderator")
@@ -111,11 +120,13 @@ def block_post(post_id: uuid.UUID, admin: User = Depends(require_admin), db: Ses
 
 
 @admin_router.patch("/posts/{post_id}/unblock", response_model=Message)
-def unblock_post(post_id: uuid.UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def unblock_post(post_id: uuid.UUID, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     post = db.get(Post, post_id)
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     post.is_blocked = False
+    db.add(Notification(user_id=post.author_id, actor_id=admin.id, type=NotificationType.MODERATION,
+                        post_id=post.id, message="Đội ngũ quản trị đã khôi phục bài viết của bạn"))
     db.commit()
     return Message(message="Post unblocked")
 
@@ -133,6 +144,8 @@ def ban_user(
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="You cannot ban yourself")
     user.status = UserStatus.BANNED
+    db.add(Notification(user_id=user.id, actor_id=admin.id, target_user_id=user.id, type=NotificationType.MODERATION,
+                        message=f"Tài khoản của bạn đã bị tạm khóa. {data.reason or ''}".strip()))
     db.commit()
     return user_public(db, user, admin)
 
@@ -140,7 +153,7 @@ def ban_user(
 @admin_router.patch("/users/{user_id}/unban", response_model=UserPublic)
 def unban_user(
     user_id: uuid.UUID,
-    _: AdminUserAction,
+    data: AdminUserAction,
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -148,5 +161,7 @@ def unban_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.status = UserStatus.ACTIVE
+    db.add(Notification(user_id=user.id, actor_id=admin.id, target_user_id=user.id, type=NotificationType.MODERATION,
+                        message=f"Tài khoản của bạn đã được mở khóa. {data.reason or ''}".strip()))
     db.commit()
     return user_public(db, user, admin)

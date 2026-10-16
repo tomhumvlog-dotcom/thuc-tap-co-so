@@ -20,7 +20,7 @@ export function MediaDetailsDialog({ media, onClose }: { media: Media[]; onClose
   }, [media, retry]);
   return <Dialog title="Thông tin tệp đính kèm" onClose={onClose}>
     {loading ? <Loading /> : error ? <ErrorState message={error} retry={() => setRetry((value) => value + 1)} /> : <div className="media-details">{items.map((item, index) => <section key={item.id}>
-      <h3>Tệp {index + 1}</h3><dl><dt>Loại tệp</dt><dd>{item.mime_type}</dd><dt>Dung lượng</dt><dd>{(item.size_bytes / 1024 / 1024).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} MB</dd><dt>Ngày tải lên</dt><dd>{new Date(item.created_at).toLocaleString('vi-VN')}</dd></dl>
+      <h3>Tệp {index + 1}</h3><dl><dt>Loại tệp</dt><dd>{item.mime_type}</dd>{item.mime_type.startsWith('image/') && <><dt>Nhận diện AI</dt><dd>{item.is_ai_generated == null ? 'Chưa có kết quả' : item.is_ai_generated ? 'Có dấu hiệu là ảnh do AI tạo' : 'Không phát hiện dấu hiệu ảnh AI'}</dd></>}<dt>Dung lượng</dt><dd>{(item.size_bytes / 1024 / 1024).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} MB</dd><dt>Ngày tải lên</dt><dd>{new Date(item.created_at).toLocaleString('vi-VN')}</dd></dl>
       <a className="secondary-btn" href={item.url} target="_blank" rel="noreferrer">Mở tệp gốc</a>
     </section>)}</div>}
   </Dialog>;

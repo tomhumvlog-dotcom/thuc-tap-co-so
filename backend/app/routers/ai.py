@@ -49,8 +49,8 @@ def require_ai_user(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-def build_thread_context(db: Session, post_id: uuid.UUID) -> str:
-    post = get_post_or_404(db, post_id)
+def build_thread_context(db: Session, post_id: uuid.UUID, user: User) -> str:
+    post = get_post_or_404(db, post_id, user)
     replies = db.scalars(
         select(Reply)
         .options(selectinload(Reply.author))
@@ -135,7 +135,7 @@ async def fact_check_post(
     user: User = Depends(require_ai_user),
     db: Session = Depends(get_db),
 ):
-    post = get_post_or_404(db, post_id)
+    post = get_post_or_404(db, post_id, user)
     result = await call_gemini(
         user,
         system_instruction=(
@@ -161,7 +161,7 @@ async def ask_about_post(
     user: User = Depends(require_ai_user),
     db: Session = Depends(get_db),
 ):
-    context = build_thread_context(db, post_id)
+    context = build_thread_context(db, post_id, user)
     result = await call_gemini(
         user,
         system_instruction=(
@@ -180,7 +180,7 @@ async def summarize_thread(
     user: User = Depends(require_ai_user),
     db: Session = Depends(get_db),
 ):
-    context = build_thread_context(db, post_id)
+    context = build_thread_context(db, post_id, user)
     result = await call_gemini(
         user,
         system_instruction=(
@@ -199,7 +199,7 @@ async def suggest_reply(
     user: User = Depends(require_ai_user),
     db: Session = Depends(get_db),
 ):
-    context = build_thread_context(db, post_id)
+    context = build_thread_context(db, post_id, user)
     result = await call_gemini(
         user,
         system_instruction=(

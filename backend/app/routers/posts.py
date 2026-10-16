@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.deps import get_current_user, get_optional_user, pagination
-from app.models import Media, Post, Reply, User
+from app.models import Follow, Media, NotificationType, Post, Reply, User
 from app.schemas import Message, PostCreate, PostList, PostOut, PostUpdate, ReplyCreate, ReplyList, ReplyOut
-from app.services import get_post_or_404, post_out, post_query
+from app.services import get_post_or_404, notify, post_out, post_query
 
 router = APIRouter(prefix="/posts", tags=["Post / Thread"])
 
@@ -36,8 +36,11 @@ def create_post(data: PostCreate, user: User = Depends(get_current_user), db: Se
     for position, item in enumerate(media):
         item.post_id = post.id
         item.position = position
+    follower_ids = db.scalars(select(Follow.follower_id).where(Follow.following_id == user.id)).all()
+    for follower_id in follower_ids:
+        notify(db, follower_id, user, NotificationType.POST, f"@{user.username} vừa đăng một bài viết", post.id)
     db.commit()
-    return post_out(db, get_post_or_404(db, post.id), user)
+    return post_out(db, get_post_or_404(db, post.id, user), user)
 
 
 @router.get("", response_model=PostList)
@@ -47,8 +50,8 @@ def get_posts(
     db: Session = Depends(get_db),
 ):
     offset, limit = page
-    stmt = post_query()
-    total = db.scalar(select(func.count()).select_from(Post).where(~Post.is_blocked)) or 0
+    stmt = post_query(viewer)
+    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
     posts = db.scalars(stmt.order_by(Post.created_at.desc()).offset(offset).limit(limit)).all()
     return PostList(items=[post_out(db, p, viewer) for p in posts], total=total, offset=offset, limit=limit)
 
@@ -59,7 +62,7 @@ def get_post(
     viewer: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
-    return post_out(db, get_post_or_404(db, post_id), viewer)
+    return post_out(db, get_post_or_404(db, post_id, viewer), viewer)
 
 
 @router.patch("/{post_id}", response_model=PostOut)
@@ -69,7 +72,7 @@ def update_post(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    post = get_post_or_404(db, post_id)
+    post = get_post_or_404(db, post_id, user)
     if post.author_id != user.id:
         raise HTTPException(status_code=403, detail="You can only update your own posts")
     post.content = data.content.strip()
@@ -80,7 +83,7 @@ def update_post(
 
 @router.delete("/{post_id}", response_model=Message)
 def delete_post(post_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    post = get_post_or_404(db, post_id)
+    post = get_post_or_404(db, post_id, user)
     if post.author_id != user.id:
         raise HTTPException(status_code=403, detail="You can only delete your own posts")
     db.delete(post)
@@ -95,14 +98,11 @@ def create_reply(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    from app.models import NotificationType
-    from app.services import notify
-
-    post = get_post_or_404(db, post_id)
+    post = get_post_or_404(db, post_id, user)
     reply = Reply(post_id=post.id, author_id=user.id, content=data.content.strip())
     db.add(reply)
     notify(
-        db, post.author_id, user, NotificationType.REPLY, f"@{user.username} replied to your thread", post.id
+        db, post.author_id, user, NotificationType.REPLY, f"@{user.username} đã trả lời bài viết của bạn", post.id
     )
     db.commit()
     db.refresh(reply)
@@ -113,9 +113,10 @@ def create_reply(
 def get_replies(
     post_id: uuid.UUID,
     page: tuple[int, int] = Depends(pagination),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    get_post_or_404(db, post_id)
+    get_post_or_404(db, post_id, user)
     offset, limit = page
     stmt = select(Reply).options(selectinload(Reply.author)).where(Reply.post_id == post_id)
     total = db.scalar(select(func.count()).select_from(Reply).where(Reply.post_id == post_id)) or 0

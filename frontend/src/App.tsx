@@ -32,6 +32,16 @@ export default function App() {
     else localStorage.removeItem('user');
   }, []);
   useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.dataset.theme = savedTheme;
+    if (savedTheme === 'system') {
+      const media = window.matchMedia('(prefers-color-scheme: light)');
+      const apply = () => { document.documentElement.dataset.theme = media.matches ? 'light' : 'dark'; };
+      apply(); media.addEventListener('change', apply);
+      return () => media.removeEventListener('change', apply);
+    }
+  }, []);
+  useEffect(() => {
     if (!user?.id || !localStorage.getItem('access_token')) return;
     let active = true;
     api<User>('/users/me').then((next) => { if (active) setUser(next); }).catch(() => {

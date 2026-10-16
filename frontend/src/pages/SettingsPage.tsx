@@ -16,6 +16,8 @@ export function SettingsPage() {
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const [privacyBusy, setPrivacyBusy] = useState(false);
   const avatarInput = useRef<HTMLInputElement>(null);
   if (!user) return null;
 
@@ -69,6 +71,23 @@ export function SettingsPage() {
     } finally {
       setAiBusy(false);
     }
+  };
+
+  const changeTheme = (value: string) => {
+    setTheme(value);
+    localStorage.setItem('theme', value);
+    document.documentElement.dataset.theme = value === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+      : value;
+  };
+
+  const togglePrivacy = async () => {
+    setPrivacyBusy(true); setNotice('');
+    try {
+      const next = await api<User>('/users/me', { method: 'PATCH', body: JSON.stringify({ is_private: !user.is_private }) });
+      persistUser(next); setNotice(next.is_private ? 'Đã chuyển tài khoản sang riêng tư.' : 'Tài khoản hiện công khai.');
+    } catch (reason) { setNotice((reason as Error).message); }
+    finally { setPrivacyBusy(false); }
   };
 
   const updateAvatar = async (blob: Blob) => {
@@ -154,8 +173,8 @@ export function SettingsPage() {
     </section>
     {notice && <p className="settings-notice settings-page-notice">{notice}</p>}
     <section className="settings-links surface">
-      <button><Moon /><span><b>Giao diện</b><small>Tối theo hệ thống</small></span><ChevronRight /></button>
-      <button><ShieldCheck /><span><b>Quyền riêng tư</b><small>Quản lý hiển thị tài khoản</small></span><ChevronRight /></button>
+      <div className="settings-option"><Moon /><span><b>Giao diện</b><small>Chọn giao diện cho ứng dụng</small></span><select aria-label="Giao diện" value={theme} onChange={(event) => changeTheme(event.target.value)}><option value="dark">Tối</option><option value="light">Sáng</option><option value="system">Theo hệ thống</option></select></div>
+      <div className="settings-option"><ShieldCheck /><span><b>Tài khoản riêng tư</b><small>{user.is_private ? 'Chỉ người theo dõi mới xem được bài viết' : 'Bài viết hiển thị công khai'}</small></span><button className={user.is_private ? 'toggle-switch active' : 'toggle-switch'} onClick={togglePrivacy} disabled={privacyBusy} role="switch" aria-checked={Boolean(user.is_private)} aria-label="Tài khoản riêng tư"><span /></button></div>
       <button className="danger" onClick={deactivate}><Trash2 /><span><b>Vô hiệu hóa tài khoản</b><small>Ẩn hồ sơ và nội dung của bạn</small></span><ChevronRight /></button>
     </section>
     {avatarFile && <AvatarCropDialog file={avatarFile} busy={avatarBusy} onCancel={() => setAvatarFile(null)} onSave={updateAvatar} />}

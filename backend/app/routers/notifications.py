@@ -21,7 +21,7 @@ def notifications(
     offset, limit = page
     stmt = (
         select(Notification)
-        .options(selectinload(Notification.actor))
+        .options(selectinload(Notification.actor), selectinload(Notification.target_user))
         .where(Notification.user_id == user.id)
         .order_by(Notification.created_at.desc())
         .offset(offset)
@@ -59,7 +59,7 @@ def mark_read(
 ):
     item = db.scalar(
         select(Notification)
-        .options(selectinload(Notification.actor))
+        .options(selectinload(Notification.actor), selectinload(Notification.target_user))
         .where(Notification.id == notification_id, Notification.user_id == user.id)
     )
     if not item:

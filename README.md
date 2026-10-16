@@ -121,8 +121,9 @@ nhóm đường dẫn API.
 Mọi ảnh tải lên qua `POST /api/v1/media` được kiểm tra bằng EfficientNet-B0 đã huấn luyện trong
 `deepfake-ai-generate.ipynb` trước khi ghi file và tạo bản ghi media. Backend nạp trọng số từ
 `best_model.pth`, dùng cùng preprocessing của notebook (resize bilinear `224x224` và ImageNet normalization),
-với thứ tự nhãn `real=0`, `fake=1`. Ảnh có điểm `fake` từ ngưỡng cấu hình trở lên sẽ bị từ chối; frontend
-hiển thị thông báo lỗi và không cho gắn ảnh đó vào bài đăng. Video không đi qua model ảnh.
+với thứ tự nhãn `real=0`, `fake=1`. Kết quả nhận diện được lưu trên từng media và ảnh có điểm `fake` từ ngưỡng
+cấu hình trở lên được gắn nhãn “Ảnh do AI tạo” trong bài viết. Việc nhận diện không chặn đăng ảnh; nếu model
+không khả dụng, ảnh vẫn được lưu nhưng không có nhãn nhận diện. Video không đi qua model ảnh.
 
 - `THREADS_IMAGE_MODEL_PATH`: đường dẫn checkpoint, mặc định là `best_model.pth` ở thư mục gốc dự án.
 - `THREADS_AI_GENERATED_THRESHOLD`: ngưỡng điểm `fake`, mặc định `0.5`, hợp lệ từ `0` đến `1`.

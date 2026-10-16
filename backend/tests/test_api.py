@@ -178,7 +178,7 @@ def test_ai_assistant_requires_opt_in_and_supports_all_actions(client, registere
     assert any("kiến thức thiên văn" in call.kwargs["prompt"] for call in mocked_gemini.await_args_list)
 
 
-def test_image_upload_rejects_ai_generated_and_accepts_real(
+def test_image_upload_labels_ai_generated_and_accepts_real(
     client, registered, monkeypatch, test_upload_dir
 ):
     _, headers = registered
@@ -189,16 +189,14 @@ def test_image_upload_rejects_ai_generated_and_accepts_real(
         lambda _: ImageAuthenticityResult(fake_score=0.98, real_score=0.02),
     )
 
-    rejected = client.post(
+    flagged = client.post(
         "/api/v1/media",
         headers=headers,
         files={"file": ("fake.png", b"fake image bytes", "image/png")},
     )
-    assert rejected.status_code == 422
-    assert rejected.json()["detail"] == (
-        "Ảnh được phát hiện là ảnh do AI tạo và không thể đăng lên được."
-    )
-    assert list(test_upload_dir.iterdir()) == []
+    assert flagged.status_code == 201, flagged.text
+    assert flagged.json()["is_ai_generated"] is True
+    assert len(list(test_upload_dir.iterdir())) == 1
 
     monkeypatch.setattr(
         media_router,
@@ -212,12 +210,14 @@ def test_image_upload_rejects_ai_generated_and_accepts_real(
     )
     assert accepted.status_code == 201, accepted.text
     assert accepted.json()["mime_type"] == "image/png"
-    assert len(list(test_upload_dir.iterdir())) == 1
+    assert accepted.json()["is_ai_generated"] is False
+    assert len(list(test_upload_dir.iterdir())) == 2
     with TestingSession() as db:
-        assert db.scalar(select(func.count()).select_from(Media)) == 1
+        assert db.scalar(select(func.count()).select_from(Media)) == 2
+        assert db.scalar(select(func.count()).select_from(Media).where(Media.is_ai_generated.is_(True))) == 1
 
 
-def test_image_upload_fails_closed_when_model_is_unavailable(
+def test_image_upload_continues_unlabeled_when_model_is_unavailable(
     client, registered, monkeypatch, test_upload_dir
 ):
     _, headers = registered
@@ -232,8 +232,9 @@ def test_image_upload_fails_closed_when_model_is_unavailable(
         headers=headers,
         files={"file": ("photo.jpg", b"image bytes", "image/jpeg")},
     )
-    assert response.status_code == 503
-    assert list(test_upload_dir.iterdir()) == []
+    assert response.status_code == 201, response.text
+    assert response.json()["is_ai_generated"] is None
+    assert len(list(test_upload_dir.iterdir())) == 1
 
 
 def test_google_api_key_is_encrypted_and_can_be_removed(client, registered):

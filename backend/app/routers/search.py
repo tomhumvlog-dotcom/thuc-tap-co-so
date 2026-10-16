@@ -41,8 +41,9 @@ def search_posts(
 ):
     offset, limit = page
     condition = Post.content.ilike(f"%{q.strip()}%")
-    total = db.scalar(select(func.count()).select_from(Post).where(condition, ~Post.is_blocked)) or 0
+    stmt = post_query(viewer).where(condition)
+    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
     posts = db.scalars(
-        post_query().where(condition).order_by(Post.created_at.desc()).offset(offset).limit(limit)
+        stmt.order_by(Post.created_at.desc()).offset(offset).limit(limit)
     ).all()
     return PostList(items=[post_out(db, p, viewer) for p in posts], total=total, offset=offset, limit=limit)

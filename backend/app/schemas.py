@@ -47,6 +47,7 @@ class UserUpdate(BaseModel):
     website: str | None = Field(default=None, max_length=500)
     username: str | None = Field(default=None, min_length=3, max_length=30, pattern=r"^[a-zA-Z0-9_.]+$")
     ai_assistant_enabled: bool | None = None
+    is_private: bool | None = None
     google_api_key: SecretStr | None = Field(default=None, max_length=500)
 
 
@@ -70,6 +71,7 @@ class UserPublic(UserSummary):
     replies_count: int = 0
     reposts_count: int = 0
     is_following: bool = False
+    is_private: bool = False
 
 
 class UserMe(UserPublic):
@@ -91,6 +93,7 @@ class MediaOut(ORMModel):
     url: str
     mime_type: str
     size_bytes: int
+    is_ai_generated: bool | None = None
     created_at: datetime
 
 
@@ -176,6 +179,7 @@ class ProfileReplyList(BaseModel):
 class NotificationOut(ORMModel):
     id: uuid.UUID
     actor: UserSummary | None
+    target_user: UserSummary | None = None
     type: NotificationType
     message: str
     post_id: uuid.UUID | None

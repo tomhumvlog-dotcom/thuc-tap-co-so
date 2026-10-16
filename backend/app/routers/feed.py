@@ -22,7 +22,7 @@ def active_user_by_username(db: Session, username: str) -> User:
 
 def feed_response(db, stmt, count_condition, user, page):
     offset, limit = page
-    total = db.scalar(select(func.count()).select_from(Post).where(*count_condition, ~Post.is_blocked)) or 0
+    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
     posts = db.scalars(stmt.order_by(Post.created_at.desc()).offset(offset).limit(limit)).unique().all()
     return PostList(
         items=[post_out(db, post, user) for post in posts], total=total, offset=offset, limit=limit
@@ -37,7 +37,7 @@ def home_feed(
 ):
     following_ids = select(Follow.following_id).where(Follow.follower_id == user.id)
     condition = or_(Post.author_id == user.id, Post.author_id.in_(following_ids))
-    stmt = post_query().where(condition)
+    stmt = post_query(user).where(condition)
     return feed_response(db, stmt, [condition], user, page)
 
 
@@ -49,7 +49,7 @@ def following_feed(
 ):
     following_ids = select(Follow.following_id).where(Follow.follower_id == user.id)
     condition = Post.author_id.in_(following_ids)
-    return feed_response(db, post_query().where(condition), [condition], user, page)
+    return feed_response(db, post_query(user).where(condition), [condition], user, page)
 
 
 @router.get("/shorts", response_model=PostList)
@@ -59,7 +59,7 @@ def shorts_feed(
     db: Session = Depends(get_db),
 ):
     condition = Post.is_short.is_(True)
-    return feed_response(db, post_query().where(condition), [condition], user, page)
+    return feed_response(db, post_query(user).where(condition), [condition], user, page)
 
 
 @router.get("/users/{username}", response_model=PostList)
@@ -70,8 +70,10 @@ def user_posts(
     db: Session = Depends(get_db),
 ):
     target = active_user_by_username(db, username)
+    if target.is_private and target.id != user.id and not db.get(Follow, {"follower_id": user.id, "following_id": target.id}):
+        return PostList(items=[], total=0, offset=page[0], limit=page[1])
     return feed_response(
-        db, post_query().where(Post.author_id == target.id), [Post.author_id == target.id], user, page
+        db, post_query(user).where(Post.author_id == target.id), [Post.author_id == target.id], user, page
     )
 
 
@@ -83,6 +85,9 @@ def user_replies(
     db: Session = Depends(get_db),
 ):
     target = active_user_by_username(db, username)
+    if target.is_private and target.id != user.id and not db.get(Follow, {"follower_id": user.id, "following_id": target.id}):
+        offset, limit = page
+        return ProfileReplyList(items=[], total=0, offset=offset, limit=limit)
     offset, limit = page
     visible_reply = (Reply.author_id == target.id, ~Post.is_blocked)
     total = db.scalar(
@@ -120,6 +125,9 @@ def user_reposts(
     db: Session = Depends(get_db),
 ):
     target = active_user_by_username(db, username)
+    if target.is_private and target.id != user.id and not db.get(Follow, {"follower_id": user.id, "following_id": target.id}):
+        offset, limit = page
+        return PostList(items=[], total=0, offset=offset, limit=limit)
     offset, limit = page
     total = db.scalar(
         select(func.count())
@@ -128,7 +136,7 @@ def user_reposts(
         .where(Repost.user_id == target.id, ~Post.is_blocked)
     ) or 0
     stmt = (
-        post_query()
+        post_query(user)
         .join(Repost, Repost.post_id == Post.id)
         .where(Repost.user_id == target.id)
         .order_by(Repost.created_at.desc())

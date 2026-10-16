@@ -117,6 +117,7 @@ export function Composer({ onCreated, variant = 'post' }: { onCreated: (post: Po
                 {item.mime_type.startsWith('video/')
                   ? <video src={item.url} controls />
                   : <img src={item.url} alt="Ảnh chuẩn bị đăng" />}
+                {item.is_ai_generated && <span className="ai-image-label"><Sparkles size={14} /> Ảnh do AI tạo</span>}
                 <button className="media-remove" onClick={() => removeMedia(item)} aria-label="Xóa tệp"><X /></button>
                 {user.ai_assistant_enabled && item.mime_type.startsWith('image/') && (
                   <button className="media-caption" onClick={() => { setCaptionTarget(item); setAiOpen(false); }} aria-label="Trò chuyện với AI để tạo caption">

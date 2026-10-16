@@ -15,11 +15,11 @@ router = APIRouter(tags=["Like / Repost / Bookmark"])
 
 @router.post("/posts/{post_id}/likes", response_model=Message, status_code=status.HTTP_201_CREATED)
 def like(post_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    post = get_post_or_404(db, post_id)
+    post = get_post_or_404(db, post_id, user)
     if not db.get(Like, {"user_id": user.id, "post_id": post.id}):
         db.add(Like(user_id=user.id, post_id=post.id))
         notify(
-            db, post.author_id, user, NotificationType.LIKE, f"@{user.username} liked your thread", post.id
+            db, post.author_id, user, NotificationType.LIKE, f"@{user.username} đã thích bài viết của bạn", post.id
         )
         db.commit()
     return Message(message="Liked")
@@ -41,7 +41,7 @@ def likes(
     viewer: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    get_post_or_404(db, post_id)
+    get_post_or_404(db, post_id, viewer)
     offset, limit = page
     stmt = select(User).join(Like, Like.user_id == User.id).where(Like.post_id == post_id)
     total = db.scalar(select(func.count()).select_from(Like).where(Like.post_id == post_id)) or 0
@@ -53,7 +53,7 @@ def likes(
 
 @router.post("/posts/{post_id}/reposts", response_model=Message, status_code=201)
 def repost(post_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    post = get_post_or_404(db, post_id)
+    post = get_post_or_404(db, post_id, user)
     if not db.get(Repost, {"user_id": user.id, "post_id": post.id}):
         db.add(Repost(user_id=user.id, post_id=post.id))
         notify(
@@ -61,7 +61,7 @@ def repost(post_id: uuid.UUID, user: User = Depends(get_current_user), db: Sessi
             post.author_id,
             user,
             NotificationType.REPOST,
-            f"@{user.username} reposted your thread",
+            f"@{user.username} đã đăng lại bài viết của bạn",
             post.id,
         )
         db.commit()
@@ -84,7 +84,7 @@ def reposts(
     viewer: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    get_post_or_404(db, post_id)
+    get_post_or_404(db, post_id, viewer)
     offset, limit = page
     stmt = select(User).join(Repost, Repost.user_id == User.id).where(Repost.post_id == post_id)
     total = db.scalar(select(func.count()).select_from(Repost).where(Repost.post_id == post_id)) or 0
@@ -96,9 +96,10 @@ def reposts(
 
 @router.post("/posts/{post_id}/bookmarks", response_model=Message, status_code=201)
 def bookmark(post_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    get_post_or_404(db, post_id)
+    post = get_post_or_404(db, post_id, user)
     if not db.get(Bookmark, {"user_id": user.id, "post_id": post_id}):
         db.add(Bookmark(user_id=user.id, post_id=post_id))
+        notify(db, post.author_id, user, NotificationType.BOOKMARK, f"@{user.username} đã lưu bài viết của bạn", post.id)
         db.commit()
     return Message(message="Saved")
 
@@ -121,7 +122,7 @@ def bookmarks(
     db: Session = Depends(get_db),
 ):
     offset, limit = page
-    stmt = post_query().join(Bookmark, Bookmark.post_id == Post.id).where(Bookmark.user_id == user.id)
+    stmt = post_query(user).join(Bookmark, Bookmark.post_id == Post.id).where(Bookmark.user_id == user.id)
     total = db.scalar(select(func.count()).select_from(Bookmark).where(Bookmark.user_id == user.id)) or 0
     posts = db.scalars(stmt.order_by(Bookmark.created_at.desc()).offset(offset).limit(limit)).all()
     return PostList(items=[post_out(db, p, user) for p in posts], total=total, offset=offset, limit=limit)

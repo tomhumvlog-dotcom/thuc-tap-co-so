@@ -132,7 +132,7 @@ export function ProfilePage() {
     ) : (
       <div className="profile-grid">{posts.map((post) => (
         <button className={post.media.length ? 'profile-tile' : 'profile-tile text-tile'} key={`${tab}-${post.id}`} onClick={() => setSelectedPost(post)} aria-label={`Xem bài viết của ${post.author.username}`}>
-          {post.media[0]?.mime_type.startsWith('video/') ? <video src={post.media[0].url} muted /> : post.media[0] ? <img src={post.media[0].url} alt="" loading="lazy" /> : <span>{post.content}</span>}
+          {post.media[0]?.mime_type.startsWith('video/') ? <video src={post.media[0].url} muted /> : post.media[0] ? <><img src={post.media[0].url} alt="" loading="lazy" />{post.media[0].is_ai_generated && <b className="ai-tile-label">Ảnh AI</b>}</> : <span>{post.content}</span>}
           <i><HeartCount count={post.likes_count} /><MessageCircle /> {post.replies_count}</i>
         </button>
       ))}</div>

@@ -44,21 +44,17 @@ async def upload_media(
     if len(content) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"Tệp vượt quá {settings.max_upload_mb} MB")
 
+    is_ai_generated = None
     if content_type in IMAGE_TYPES:
         try:
             result = await run_in_threadpool(classify_image, content)
+            is_ai_generated = result.is_ai_generated
         except InvalidImageError as exc:
             raise HTTPException(status_code=415, detail="Tệp tải lên không phải là ảnh hợp lệ") from exc
-        except ImageAuthenticityUnavailableError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail="Không thể kiểm tra ảnh lúc này. Vui lòng thử lại sau.",
-            ) from exc
-        if result.is_ai_generated:
-            raise HTTPException(
-                status_code=422,
-                detail="Ảnh được phát hiện là ảnh do AI tạo và không thể đăng lên được.",
-            )
+        except ImageAuthenticityUnavailableError:
+            # Let uploads continue if the detector is temporarily unavailable;
+            # null means this image has not been classified.
+            is_ai_generated = None
 
     suffix = ALLOWED_TYPES[content_type]
     filename = f"{uuid.uuid4().hex}{suffix}"
@@ -73,6 +69,7 @@ async def upload_media(
         storage_path=str(path),
         mime_type=content_type,
         size_bytes=len(content),
+        is_ai_generated=is_ai_generated,
     )
     try:
         db.add(media)

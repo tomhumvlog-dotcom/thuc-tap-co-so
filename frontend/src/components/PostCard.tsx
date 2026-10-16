@@ -101,7 +101,10 @@ export function PostCard({ initial, onDelete, onUpdate }: { initial: Post; onDel
         {post.media.map((media) => media.mime_type.startsWith('video/') ? (
           <video key={media.id} className="post-media" controls src={media.url} />
         ) : (
-          <img key={media.id} className="post-media" src={media.url} alt={`Bài viết của ${post.author.display_name}`} loading="lazy" />
+          <div key={media.id} className="post-image-frame">
+            <img className="post-media" src={media.url} alt={`Bài viết của ${post.author.display_name}`} loading="lazy" />
+            {media.is_ai_generated && <span className="ai-image-label"><Sparkles size={14} /> Ảnh do AI tạo</span>}
+          </div>
         ))}
         </div>}
         <div className="post-actions">

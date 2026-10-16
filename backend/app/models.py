@@ -45,10 +45,12 @@ class ReportStatus(str, enum.Enum):
 
 
 class NotificationType(str, enum.Enum):
+    POST = "post"
     LIKE = "like"
     REPLY = "reply"
     FOLLOW = "follow"
     REPOST = "repost"
+    BOOKMARK = "bookmark"
     MODERATION = "moderation"
 
 
@@ -70,6 +72,7 @@ class User(TimestampMixin, Base):
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER)
     status: Mapped[UserStatus] = mapped_column(Enum(UserStatus), default=UserStatus.ACTIVE, index=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     ai_assistant_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false"
     )
@@ -178,6 +181,7 @@ class Media(TimestampMixin, Base):
     mime_type: Mapped[str] = mapped_column(String(100))
     size_bytes: Mapped[int] = mapped_column(Integer)
     position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    is_ai_generated: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     post: Mapped[Post | None] = relationship(back_populates="media")
 
@@ -191,10 +195,12 @@ class Notification(Base):
     type: Mapped[NotificationType] = mapped_column(Enum(NotificationType))
     message: Mapped[str] = mapped_column(String(255))
     post_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"))
+    target_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     actor: Mapped[User | None] = relationship(foreign_keys=[actor_id])
+    target_user: Mapped[User | None] = relationship(foreign_keys=[target_user_id])
 
 
 class Report(TimestampMixin, Base):
