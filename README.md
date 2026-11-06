@@ -1,10 +1,10 @@
-# KMA Threads
+# KMAGRAM
 
 <p align="center">
   <img src="demo.png" width="700">
 </p>
 
-Ứng dụng mạng xã hội dạng thread, lấy cảm hứng về bố cục và trải nghiệm từ
+Ứng dụng mạng xã hội dạng instagram, lấy cảm hứng về bố cục và trải nghiệm từ
 [burakorkmez/threads-clone](https://github.com/burakorkmez/threads-clone), nhưng được xây dựng mới với
 FastAPI, PostgreSQL và React/TypeScript.
 
@@ -29,7 +29,7 @@ Sau khi các container chạy:
 - Health check: http://localhost:8000/health
 - PostgreSQL: `localhost:5432`
 
-Tạo dữ liệu demo từ snapshot của 10 hồ sơ Threads công khai (40 bài, đúng 4 bài/tài khoản,
+Tạo dữ liệu demo từ snapshot của 10 hồ sơ Instagrams công khai (40 bài, đúng 4 bài/tài khoản,
 kèm ảnh được lưu cục bộ, trả lời và đăng lại mẫu):
 
 ```bash
